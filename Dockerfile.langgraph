@@ -1,0 +1,2 @@
+FROM coolproof-api:latest
+CMD ["python", "-m", "app.langgraph_runtime"]

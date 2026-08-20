@@ -1,0 +1,1 @@
+"""CoolProof backend application."""

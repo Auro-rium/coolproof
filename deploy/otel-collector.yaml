@@ -1,0 +1,20 @@
+receivers:
+  otlp:
+    protocols: { grpc: {}, http: {} }
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 256 }
+  batch: {}
+  attributes/redact:
+    actions:
+      - { key: http.request.header.authorization, action: delete }
+      - { key: gen_ai.prompt, action: delete }
+      - { key: gen_ai.completion, action: delete }
+exporters:
+  debug: { verbosity: basic }
+  prometheus: { endpoint: 0.0.0.0:8889 }
+  awscloudwatchlogs: { log_group_name: /coolproof/otel, log_stream_name: otel-collector, region: "${env:AWS_REGION}" }
+service:
+  pipelines:
+    traces: { receivers: [otlp], processors: [memory_limiter, attributes/redact, batch], exporters: [debug] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, attributes/redact, batch], exporters: [prometheus] }
+    logs: { receivers: [otlp], processors: [memory_limiter, attributes/redact, batch], exporters: [awscloudwatchlogs] }
