@@ -6,3 +6,4 @@ asyncpg>=0.29,<1.0
 aiosqlite>=0.20,<1.0
 PyJWT[crypto]>=2.9,<3.0
 prometheus-client>=0.21,<1.0
+langgraph>=0.2,<1.0

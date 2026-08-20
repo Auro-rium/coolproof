@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     aws_region: str = "us-east-2"
     documents_bucket: str | None = None
+    nim_base_url: str | None = None
+    nim_api_key: SecretStr | None = None
+    nim_model: str = "meta/llama-3.1-8b-instruct"
+    backboard_base_url: str | None = None
+    backboard_api_key: SecretStr | None = None
+    backboard_model: str = "backboard-default"
+    agent_provider: str = "deterministic"
+    agent_run_timeout_seconds: float = 120.0
 
     @field_validator("environment")
     @classmethod

@@ -4,7 +4,17 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -183,6 +193,67 @@ class ProviderCircuit(UUIDTimestampMixin, Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     open_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_open: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class AgentRunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    WAITING_APPROVAL = "waiting_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class AgentRun(UUIDTimestampMixin, Base):
+    """Durable LangGraph thread/checkpoint state, scoped to an organization."""
+    __tablename__ = "agent_runs"
+    organization_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, index=True)
+    thread_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    status: Mapped[AgentRunStatus] = mapped_column(
+        SAEnum(AgentRunStatus, name="agent_run_status"), nullable=False, default=AgentRunStatus.QUEUED
+    )
+    input_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
+    state_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
+    current_node: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class AgentEvent(UUIDTimestampMixin, Base):
+    __tablename__ = "agent_events"
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
+    )
+    organization_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    node: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    payload_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
+    # Deliberately excludes prompts, completions, and source document text.
+    safe_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AgentApproval(UUIDTimestampMixin, Base):
+    __tablename__ = "agent_approvals"
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    organization_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    decision: Mapped[str] = mapped_column(String(30), nullable=False)
+    reviewer_user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    comment: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 # Import Phase 3 tables from the canonical metadata import path so migrations
