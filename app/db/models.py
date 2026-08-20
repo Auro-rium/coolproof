@@ -183,3 +183,8 @@ class ProviderCircuit(UUIDTimestampMixin, Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     open_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_open: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+# Import Phase 3 tables from the canonical metadata import path so migrations
+# and test schema setup see the complete application metadata.
+from app.db import phase3_models as _phase3_models  # noqa: F401
