@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     cognito_jwt_secret: SecretStr | None = None
     allow_development_auth: bool = True
     metrics_token: SecretStr | None = None
+    fortyguard_base_url: str | None = None
+    fortyguard_api_key: SecretStr | None = None
+    fortyguard_timeout_seconds: float = 30.0
+    fortyguard_poll_interval_seconds: float = 2.0
+    fortyguard_max_attempts: int = 5
+    heat_cache_ttl_seconds: int = 86400
+    redis_url: str | None = None
+    aws_region: str = "us-east-2"
+    documents_bucket: str | None = None
 
     @field_validator("environment")
     @classmethod

@@ -8,6 +8,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.heat import router as heat_router
+from app.api.projects import router as projects_router
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.errors import APIError, api_error_handler, error_response
@@ -60,6 +62,8 @@ def create_app() -> FastAPI:
         return response
 
     application.include_router(router)
+    application.include_router(projects_router)
+    application.include_router(heat_router)
     return application
 
 
