@@ -22,9 +22,14 @@ class Settings(BaseSettings):
     cognito_jwks_url: str | None = None
     cognito_jwt_audience: str | None = None
     cognito_jwt_secret: SecretStr | None = None
-    allow_development_auth: bool = True
+    # Explicit opt-in only.  Never enable the header based test identity in a
+    # deployed environment by accident.
+    allow_development_auth: bool = False
+    cors_origins: str = ""
+    max_request_bytes: int = 25 * 1024 * 1024
+    rate_limit_per_minute: int = 120
     metrics_token: SecretStr | None = None
-    fortyguard_base_url: str | None = None
+    fortyguard_base_url: str = "https://api.fortyguard.com"
     fortyguard_api_key: SecretStr | None = None
     fortyguard_timeout_seconds: float = 30.0
     fortyguard_poll_interval_seconds: float = 2.0
@@ -33,12 +38,19 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     aws_region: str = "us-east-2"
     documents_bucket: str | None = None
+    # Reports may use the dedicated private reports bucket provisioned by
+    # Terraform.  Falling back to documents_bucket keeps older deployments
+    # compatible while the setting is rolled out.
+    reports_bucket: str | None = None
     nim_base_url: str | None = None
     nim_api_key: SecretStr | None = None
     nim_model: str = "meta/llama-3.1-8b-instruct"
     backboard_base_url: str | None = None
     backboard_api_key: SecretStr | None = None
     backboard_model: str = "backboard-default"
+    # The adapter does not assume a vendor-specific path. Set this from the
+    # deployment secret/configuration to match the selected Backboard API.
+    backboard_completion_endpoint: str = "/v1/agent/completions"
     agent_provider: str = "deterministic"
     agent_run_timeout_seconds: float = 120.0
 

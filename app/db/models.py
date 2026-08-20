@@ -243,7 +243,7 @@ class AgentEvent(UUIDTimestampMixin, Base):
 class AgentApproval(UUIDTimestampMixin, Base):
     __tablename__ = "agent_approvals"
     run_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), unique=True, index=True
+        Uuid(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
     )
     organization_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True

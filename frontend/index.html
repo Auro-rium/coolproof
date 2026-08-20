@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08111f" />
+    <title>CoolProof — Heat intelligence, governed</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="nav">
+        <a class="brand" href="/" aria-label="CoolProof home"><span class="brand-mark">✦</span> CoolProof</a>
+        <div class="nav-links"><a href="/docs">API docs</a><a href="/redoc">ReDoc</a><a href="/openapi.json">OpenAPI</a></div>
+      </nav>
+
+      <section class="hero">
+        <div class="eyebrow">URBAN COOLING INTELLIGENCE</div>
+        <h1>Turn heat evidence into <em>defensible action.</em></h1>
+        <p class="lede">FortyGuard heat intelligence, cited intervention evidence, deterministic portfolio optimization, and governed approvals in one operational loop.</p>
+        <div class="hero-actions"><a class="button primary" href="/docs">Open API workspace <span>↗</span></a><a class="button quiet" href="#status">View live status</a></div>
+      </section>
+
+      <section id="status" class="status-grid" aria-label="Live system status">
+        <article class="status-card"><div class="card-top"><span class="dot pending" id="live-dot"></span><span>API liveness</span><span class="status-label" id="live-status">checking</span></div><strong id="live-value">—</strong><small>Public edge response</small></article>
+        <article class="status-card"><div class="card-top"><span class="dot pending" id="ready-dot"></span><span>System readiness</span><span class="status-label" id="ready-status">checking</span></div><strong id="ready-value">—</strong><small>Production runtime</small></article>
+        <article class="status-card"><div class="card-top"><span class="dot pending" id="metrics-dot"></span><span>Telemetry</span><span class="status-label" id="metrics-status">checking</span></div><strong id="metrics-value">—</strong><small>Prometheus exposition</small></article>
+      </section>
+
+      <section class="signal-layout" aria-label="Heat intelligence overview">
+        <article class="signal-card">
+          <div class="section-heading compact"><div><div class="eyebrow">LIVE SIGNAL</div><h2>Heat exposure, made legible.</h2></div><span class="signal-badge"><span class="dot"></span> provider connected</span></div>
+          <div class="signal-visual" aria-label="Illustrative heat intensity chart">
+            <div class="signal-axis"><span>40°</span><span>35°</span><span>30°</span><span>25°</span></div>
+            <div class="bars"><i style="--height:44%"></i><i style="--height:58%"></i><i style="--height:51%"></i><i style="--height:73%"></i><i style="--height:68%"></i><i style="--height:87%"></i><i style="--height:78%"></i><i style="--height:93%"></i><i style="--height:82%"></i><i style="--height:96%"></i><i style="--height:71%"></i><i style="--height:65%"></i></div>
+            <div class="signal-grid"></div>
+            <div class="signal-labels"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>22:00</span></div>
+          </div>
+          <div class="signal-footer"><span>Illustrative dashboard view</span><span>Deterministic engines calculate; agents explain.</span></div>
+        </article>
+        <aside class="action-card"><div class="eyebrow">QUICK START</div><h3>Move from signal to decision.</h3><p>Use the governed API workflow to create a project, submit heat evidence, and request an auditable portfolio run.</p><a class="action-link" href="/docs">Explore the endpoints <span>↗</span></a><a class="action-link muted" href="/openapi.json">Download OpenAPI schema <span>↗</span></a></aside>
+      </section>
+
+      <section class="workflow">
+        <div class="section-heading"><div><div class="eyebrow">THE OPERATING LOOP</div><h2>Evidence before allocation.</h2></div><span class="section-note">Five governed stages</span></div>
+        <div class="steps">
+          <div class="step"><span>01</span><h3>Heat</h3><p>Asynchronous hyperlocal temperature evidence from FortyGuard.</p></div>
+          <div class="step"><span>02</span><h3>Evidence</h3><p>Tenant-isolated documents, citations, and intervention claims.</p></div>
+          <div class="step"><span>03</span><h3>Optimize</h3><p>Deterministic OR-Tools allocations under budget and equity constraints.</p></div>
+          <div class="step"><span>04</span><h3>Govern</h3><p>Four-agent LangGraph workflow with manager approval gates.</p></div>
+          <div class="step"><span>05</span><h3>Verify</h3><p>Weather-adjusted matched-control impact reports.</p></div>
+        </div>
+      </section>
+
+      <footer><span>CoolProof backend</span><span>Live deployment · us-east-2</span></footer>
+    </main>
+    <script src="/frontend/app.js" defer></script>
+  </body>
+</html>

@@ -33,7 +33,7 @@ services:
     depends_on: { api: { condition: service_healthy } }
     ports: ["80:80", "443:443"]
     environment: { CADDY_EMAIL: "${CADDY_EMAIL}", COOLPROOF_API_DOMAIN: "${COOLPROOF_API_DOMAIN}" }
-    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "./frontend:/srv/frontend:ro", "caddy_data:/data", "caddy_config:/config"]
     networks: [private, edge]
     security_opt: [no-new-privileges:true]
   otel-collector:
@@ -59,7 +59,9 @@ services:
     networks: [private]
 networks:
   edge: {}
-  private: { internal: true }
+  # Services are not published on host ports; allowing egress here is
+  # required for private RDS/ElastiCache endpoints and AWS APIs.
+  private: {}
 volumes:
   caddy_data: {}
   caddy_config: {}

@@ -113,21 +113,23 @@ resource "aws_db_parameter_group" "postgres" {
 }
 # pgvector is enabled by application migration: CREATE EXTENSION IF NOT EXISTS vector.
 resource "aws_db_instance" "postgres" {
-  identifier                      = "${var.name}-postgres"
-  engine                          = "postgres"
-  engine_version                  = "16"
-  instance_class                  = var.db_instance_class
-  allocated_storage               = 30
-  max_allocated_storage           = 100
-  storage_encrypted               = true
-  db_name                         = var.db_name
-  username                        = var.db_username
-  manage_master_user_password     = true
-  port                            = 5432
-  publicly_accessible             = false
-  skip_final_snapshot             = true
-  deletion_protection             = false
-  backup_retention_period         = 7
+  identifier                  = "${var.name}-postgres"
+  engine                      = "postgres"
+  engine_version              = "16"
+  instance_class              = var.db_instance_class
+  allocated_storage           = 30
+  max_allocated_storage       = 100
+  storage_encrypted           = true
+  db_name                     = var.db_name
+  username                    = var.db_username
+  manage_master_user_password = true
+  port                        = 5432
+  publicly_accessible         = false
+  skip_final_snapshot         = true
+  deletion_protection         = false
+  # Free-tier accounts reject automated backups; operators can override this
+  # in a paid environment without changing the application.
+  backup_retention_period         = 0
   vpc_security_group_ids          = [aws_security_group.data.id]
   db_subnet_group_name            = aws_db_subnet_group.main.name
   parameter_group_name            = aws_db_parameter_group.postgres.name
@@ -138,8 +140,9 @@ resource "aws_elasticache_subnet_group" "main" {
   subnet_ids = [for subnet in aws_subnet.private : subnet.id]
 }
 resource "random_password" "redis" {
-  length  = 32
-  special = true
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}:?"
 }
 resource "aws_elasticache_replication_group" "redis" {
   replication_group_id       = "${var.name}-redis"
@@ -219,15 +222,10 @@ resource "aws_cognito_user_pool" "main" {
   }
 }
 resource "aws_cognito_user_pool_client" "api" {
-  name                                 = "${var.name}-api"
-  user_pool_id                         = aws_cognito_user_pool.main.id
-  generate_secret                      = true
-  allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows                  = ["code"]
-  allowed_oauth_scopes                 = ["email", "openid", "profile"]
-  callback_urls                        = var.cognito_callback_urls
-  logout_urls                          = var.cognito_logout_urls
-  supported_identity_providers         = ["COGNITO"]
+  name                         = "${var.name}-api"
+  user_pool_id                 = aws_cognito_user_pool.main.id
+  generate_secret              = true
+  supported_identity_providers = ["COGNITO"]
 }
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/coolproof/application"
@@ -266,7 +264,12 @@ resource "aws_instance" "host" {
   iam_instance_profile        = aws_iam_instance_profile.host.name
   key_name                    = var.ec2_key_name
   associate_public_ip_address = true
-  user_data                   = file("${path.module}/../../deploy/user-data.sh")
+  user_data = templatefile("${path.module}/../../deploy/user-data.sh", {
+    runtime_secret_arn    = aws_secretsmanager_secret.runtime.arn
+    fortyguard_secret_arn = aws_secretsmanager_secret.fortyguard.arn
+    backboard_secret_arn  = aws_secretsmanager_secret.backboard.arn
+    nvidia_secret_arn     = aws_secretsmanager_secret.nvidia_nim.arn
+  })
   user_data_replace_on_change = true
   root_block_device {
     encrypted   = true

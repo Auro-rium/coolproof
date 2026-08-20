@@ -4,15 +4,22 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import TenantContext, require_tenant_roles
 from app.core.config import Settings, get_settings
 from app.core.errors import APIError
-from app.db.models import Role
+from app.db.models import Project, Role
 from app.db.phase3_models import Document, DocumentStatus
 from app.db.session import get_db_session
-from app.retrieval.documents import create_presigned_put_url, finalize_document, s3_object_key
+from app.retrieval.documents import (
+    create_presigned_put_url,
+    embed_text,
+    finalize_document,
+    prepare_upload,
+    s3_object_key,
+)
 from app.retrieval.hybrid import HybridRetriever, RetrievalQuery
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -38,6 +45,15 @@ async def create_upload(
 ) -> dict[str, str]:
     if not settings.documents_bucket:
         raise APIError(503, "document_storage_unavailable", "Document storage is not configured")
+    if request.project_id is not None:
+        project = await session.scalar(
+            select(Project).where(
+                Project.id == request.project_id,
+                Project.organization_id == tenant.organization.id,
+            )
+        )
+        if project is None:
+            raise APIError(404, "project_not_found", "Project was not found")
     document_id = uuid4()
     key = s3_object_key(tenant.organization.id, document_id, request.filename)
     document = Document(
@@ -88,7 +104,13 @@ async def finalize(
             document.status = DocumentStatus.FAILED
             await session.commit()
             raise APIError(502, "document_fetch_failed", "Unable to retrieve uploaded document") from exc
-    count = await finalize_document(session, document, content)
+    try:
+        prepare_upload(tenant.organization.id, document.id, document.filename, content, document.content_type)
+        count = await finalize_document(session, document, content)
+    except ValueError as exc:
+        document.status = DocumentStatus.FAILED
+        await session.commit()
+        raise APIError(422, "document_validation_failed", str(exc)) from exc
     return {"document_id": str(document.id), "status": document.status.value, "chunk_count": count}
 
 
@@ -98,8 +120,6 @@ async def list_documents(
     session: AsyncSession = Depends(get_db_session),
 ) -> list[dict[str, object]]:
     """List only documents owned by the selected organization."""
-    from sqlalchemy import select
-
     result = await session.execute(
         select(Document)
         .where(Document.organization_id == tenant.organization.id)
@@ -130,6 +150,7 @@ async def search_documents(
         RetrievalQuery(
             organization_id=tenant.organization.id,
             text=query,
+            embedding=tuple(embed_text(query)),
             limit=limit,
             project_id=project_id,
         )

@@ -14,3 +14,8 @@ output "cognito_user_pool_id" { value = aws_cognito_user_pool.main.id }
 output "cognito_client_id" { value = aws_cognito_user_pool_client.api.id }
 output "runtime_secret_arn" { value = aws_secretsmanager_secret.runtime.arn }
 output "fortyguard_secret_arn" { value = aws_secretsmanager_secret.fortyguard.arn }
+output "database_secret_arn" { value = aws_db_instance.postgres.master_user_secret[0].secret_arn }
+output "redis_auth_token" {
+  value     = random_password.redis.result
+  sensitive = true
+}

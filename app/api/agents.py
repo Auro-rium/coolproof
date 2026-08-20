@@ -10,11 +10,17 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.runtime import create_run, decide_run, execute_run, stream_events
+from app.agents.runtime import (
+    create_run,
+    decide_run,
+    execute_run,
+    finalize_approved_run,
+    stream_events,
+)
 from app.api.deps import TenantContext, require_tenant_roles
 from app.core.config import Settings, get_settings
 from app.core.errors import APIError
-from app.db.models import AgentRun, Role
+from app.db.models import AgentRun, Project, Role
 from app.db.session import get_db_session
 
 router = APIRouter(prefix="/api/v1/agent-runs", tags=["agents"])
@@ -52,6 +58,15 @@ async def start_agent_run(
     session: AsyncSession = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
+    if body.project_id is not None:
+        project = await session.scalar(
+            select(Project).where(
+                Project.id == body.project_id,
+                Project.organization_id == tenant.organization.id,
+            )
+        )
+        if project is None:
+            raise APIError(404, "project_not_found", "Project was not found")
     run = await create_run(
         session, organization_id=tenant.organization.id, project_id=body.project_id,
         input_data=body.input,
@@ -80,6 +95,7 @@ async def approve_agent_run(
     body: ApprovalRequest,
     tenant: TenantContext = Depends(require_tenant_roles(Role.MANAGER, Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     run = await session.scalar(select(AgentRun).where(AgentRun.id == run_id))
     if run is None:
@@ -89,6 +105,13 @@ async def approve_agent_run(
         reviewer_user_id=tenant.user.id, reviewer_role=tenant.membership.role,
         decision=body.decision, comment=body.comment,
     )
+    # Revision requests re-enter the same governed graph from its durable
+    # checkpoint. Approval is finalized only after this explicit transition,
+    # keeping rejected/revised runs from being reported as completed.
+    if body.decision == "revise":
+        await execute_run(session, run, settings)
+    elif body.decision == "approve":
+        await finalize_approved_run(session, run)
     return {"run_id": str(run.id), "decision": approval.decision, "status": run.status.value, "revision": approval.revision}
 
 

@@ -53,14 +53,18 @@ class FortyGuardClient:
         self._ready()
         own_client = self._client is None
         base_url = self.base_url
-        if base_url is None:  # _ready() raises first; narrows for static analysis.
+        api_key = self.api_key
+        if base_url is None or api_key is None:  # _ready() raises first; narrows for static analysis.
             raise FortyGuardError("fortyguard_not_configured", "FortyGuard is not configured")
         client = self._client or httpx.AsyncClient(base_url=base_url, timeout=self.timeout)
         try:
             for attempt in range(self.max_attempts):
                 try:
                     response = await client.request(
-                        method, path, headers={"Authorization": f"Bearer {self.api_key}"}, **kwargs
+                        method,
+                        path,
+                        headers={"api-key": api_key, "Content-Type": "application/json"},
+                        **kwargs,
                     )
                     if response.status_code == 429 or response.status_code >= 500:
                         raise FortyGuardError(
@@ -101,8 +105,10 @@ class FortyGuardClient:
         raise AssertionError("unreachable")
 
     async def create_analysis(self, payload: dict[str, object]) -> str:
-        response = await self._request("POST", "/activities", json=payload)
-        activity_id = response.get("activity_id") or response.get("id")
+        response = await self._request("POST", "/v1/heatmap", json=payload)
+        data = response.get("data")
+        data = data if isinstance(data, dict) else {}
+        activity_id = data.get("activity_id") or response.get("activity_id") or response.get("id")
         if not isinstance(activity_id, str) or not activity_id:
             raise FortyGuardError(
                 "fortyguard_invalid_response", "FortyGuard response omitted activity identifier"
@@ -110,4 +116,4 @@ class FortyGuardClient:
         return activity_id
 
     async def get_activity(self, activity_id: str) -> dict[str, Any]:
-        return await self._request("GET", f"/activities/{activity_id}")
+        return await self._request("GET", f"/v1/status/{activity_id}")

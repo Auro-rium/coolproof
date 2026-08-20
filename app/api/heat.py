@@ -28,6 +28,11 @@ class HeatAnalysisCreate(BaseModel):
 
 
 def heat_out(analysis: HeatAnalysis, *, cached: bool = False) -> dict[str, object]:
+    stale = bool(
+        analysis.expires_at
+        and analysis.expires_at
+        <= __import__("datetime").datetime.now(__import__("datetime").UTC)
+    )
     return {
         "id": str(analysis.id),
         "project_id": str(analysis.project_id),
@@ -35,10 +40,11 @@ def heat_out(analysis: HeatAnalysis, *, cached: bool = False) -> dict[str, objec
         "status": analysis.status.value,
         "result": analysis.result,
         "cached": cached,
-        "stale": bool(
-            analysis.expires_at
-            and analysis.expires_at
-            <= __import__("datetime").datetime.now(__import__("datetime").UTC)
+        "stale": stale,
+        "stale_warning": (
+            "FortyGuard is unavailable; showing the last successful dataset"
+            if stale and analysis.result is not None
+            else None
         ),
         "error": {"code": analysis.error_code, "message": analysis.error_message}
         if analysis.error_code

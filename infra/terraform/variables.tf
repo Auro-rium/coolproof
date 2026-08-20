@@ -16,7 +16,7 @@ variable "availability_zones" {
 }
 variable "ec2_instance_type" {
   type    = string
-  default = "t3.large"
+  default = "t3.micro"
 }
 variable "ec2_key_name" {
   type     = string
@@ -29,7 +29,7 @@ variable "allowed_cidrs" {
 }
 variable "db_instance_class" {
   type    = string
-  default = "db.t4g.medium"
+  default = "db.t3.micro"
 }
 variable "db_name" {
   type    = string

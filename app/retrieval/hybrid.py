@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import text as sql_text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.phase3_models import Document, DocumentChunk, DocumentStatus
@@ -67,6 +69,40 @@ class HybridRetriever:
         )
         if query.project_id is not None:
             statement = statement.where(Document.project_id == query.project_id)
+        # PostgreSQL performs lexical candidate selection in the database.  A
+        # missing pgvector column (older rollout) transparently falls back to
+        # the portable JSON/token implementation below.
+        if self.session.bind is not None and self.session.bind.dialect.name == "postgresql":
+            try:
+                embedding = list(query.embedding or ())
+                vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
+                project_clause = "AND d.project_id = :project_id" if query.project_id else ""
+                pg_rows = await self.session.execute(
+                    sql_text(
+                        f"""SELECT dc.id AS chunk_id, d.id AS document_id, d.filename,
+                        dc.page_number, dc.text,
+                        (0.4 * ts_rank_cd(to_tsvector('simple', dc.lexical_text), plainto_tsquery('simple', :query))
+                         + 0.6 * (1 - (dc.embedding_vector <=> CAST(:embedding AS vector)))) AS score
+                        FROM document_chunks dc JOIN documents d ON d.id = dc.document_id
+                        WHERE dc.organization_id = :organization_id AND d.organization_id = :organization_id
+                          AND d.status = 'ready' AND dc.embedding_vector IS NOT NULL {project_clause}
+                        ORDER BY score DESC LIMIT :limit"""
+                    ),
+                    {"query": query.text, "embedding": vector_literal,
+                     "organization_id": str(query.organization_id),
+                     "project_id": str(query.project_id) if query.project_id else None,
+                     "limit": max(1, query.limit)},
+                )
+                rows_with_rank = pg_rows.mappings().all()
+                if rows_with_rank:
+                    return [
+                        Citation(row["document_id"], row["chunk_id"], row["filename"], row["page_number"], row["text"], round(float(row["score"]), 6))
+                        for row in rows_with_rank if float(row["score"]) > 0
+                    ]
+            except SQLAlchemyError:
+                # Keep compatibility with existing databases while migration
+                # 0003 is being rolled out.
+                await self.session.rollback()
         rows = await self.session.execute(statement)
         terms = {part.lower() for part in query.text.split() if part.strip()}
 

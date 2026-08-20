@@ -10,6 +10,8 @@ class InterventionSpec:
     unit_cost: float
     cooling_score: float
     eligible_land_uses: frozenset[str]
+    uncertainty: float = 0.0
+    compatibility_group: str | None = None
 
 
 def is_eligible(spec: InterventionSpec, land_use: str) -> bool:

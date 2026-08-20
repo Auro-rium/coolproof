@@ -16,6 +16,7 @@ from app.core.errors import APIError
 class TokenClaims:
     subject: str
     email: str | None
+    roles: frozenset[str] = frozenset()
 
 
 class CognitoJWTVerifier:
@@ -48,4 +49,8 @@ class CognitoJWTVerifier:
             raise APIError(401, "invalid_token", "Bearer token validation failed") from exc
         if payload.get("token_use") not in {"access", "id"} or not payload.get("sub"):
             raise APIError(401, "invalid_token", "Token claims are incomplete")
-        return TokenClaims(subject=payload["sub"], email=payload.get("email"))
+        raw_groups = payload.get("cognito:groups", payload.get("groups", []))
+        if isinstance(raw_groups, str):
+            raw_groups = raw_groups.split(",")
+        roles = frozenset(str(item).casefold() for item in raw_groups if isinstance(item, str))
+        return TokenClaims(subject=payload["sub"], email=payload.get("email"), roles=roles)

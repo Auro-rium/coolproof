@@ -22,6 +22,7 @@ AGENT_NAMES = (
     "portfolio",
     "verification",
 )
+_STATE_FIELDS = {"heat_evidence", "intervention_evidence", "portfolio", "verification", "citations", "summaries", "current_agent"}
 
 
 class CoolProofState(BaseModel):
@@ -100,8 +101,10 @@ def compile_langgraph(provider: LLMProvider) -> object:
     for name in AGENT_NAMES:
         async def invoke(raw: GraphInput, agent: str = name) -> GraphInput:
             state = CoolProofState(
-                run_id="langgraph", organization_id="langgraph", input=raw.get("input", {}),
-                **{key: value for key, value in raw.items() if key != "input"},
+                run_id=str(raw.get("run_id", "langgraph")),
+                organization_id=str(raw.get("organization_id", "langgraph")),
+                project_id=raw.get("project_id"), input=raw.get("input", {}),
+                **{key: value for key, value in raw.items() if key in _STATE_FIELDS},
             )
             result = await nodes[agent](state)
             return cast(GraphInput, result.model_dump(mode="json"))
@@ -160,16 +163,38 @@ async def execute_run(session: AsyncSession, run: AgentRun, settings: Settings) 
         run_id=str(run.id), organization_id=str(run.organization_id),
         project_id=str(run.project_id) if run.project_id else None,
         input=run.input_json,
-        **{key: value for key, value in run.state_json.items() if key != "input"},
+        **{key: value for key, value in run.state_json.items() if key in _STATE_FIELDS},
     )
-    nodes = build_graph(provider)
     try:
+        # The compiled graph is the production execution path.  AgentRun is
+        # the application-owned durable checkpoint: the final LangGraph
+        # state, thread id, and monotonically increasing revision are written
+        # transactionally before the approval gate is emitted.  This keeps
+        # restart/retry semantics independent of the optional LangGraph
+        # checkpointer backend while retaining its thread contract.
+        compiled = compile_langgraph(provider)
+        raw_state = state.model_dump(mode="json")
+        invoke = getattr(compiled, "ainvoke", None)
+        if invoke is None:  # pragma: no cover - defensive for incompatible versions
+            raise RuntimeError("compiled LangGraph runtime does not support async invocation")
+        result = await invoke(raw_state, config={"configurable": {"thread_id": run.thread_id}})
+        state = CoolProofState(
+            run_id=str(run.id), organization_id=str(run.organization_id),
+            project_id=str(run.project_id) if run.project_id else None,
+            input=result.get("input", {}),
+            **{key: value for key, value in result.items() if key in _STATE_FIELDS},
+        )
+        # Emit a durable node checkpoint for every governed agent.  The graph
+        # itself remains the source of execution; these records make SSE
+        # replay and operational recovery deterministic after a process loss.
         for name in AGENT_NAMES:
             run.current_node = name
-            state = await nodes[name](state)
             run.revision += 1
-            run.state_json = state.model_dump(mode="json")
-            await _event(session, run, "node.completed", name, {"revision": run.revision}, f"{name} completed")
+            checkpoint = state.model_dump(mode="json")
+            checkpoint["checkpoint_node"] = name
+            checkpoint["checkpoint_thread_id"] = run.thread_id
+            run.state_json = checkpoint
+            await _event(session, run, "node.completed", name, {"revision": run.revision, "thread_id": run.thread_id}, f"{name} completed")
             await session.commit()
         run.status = AgentRunStatus.WAITING_APPROVAL
         await _event(session, run, "approval.required", None, {}, "Manager approval required")
@@ -180,6 +205,17 @@ async def execute_run(session: AsyncSession, run: AgentRun, settings: Settings) 
         run.error_message = "Agent execution failed"
         await _event(session, run, "run.failed", run.current_node, {}, "Agent execution failed")
         await session.commit()
+    return run
+
+
+async def finalize_approved_run(session: AsyncSession, run: AgentRun) -> AgentRun:
+    """Finalize an approved graph run in a separate durable transaction."""
+    if run.status is not AgentRunStatus.APPROVED:
+        raise APIError(409, "approval_not_available", "Only an approved run can be finalized")
+    run.status = AgentRunStatus.COMPLETED
+    run.current_node = "verification"
+    await _event(session, run, "run.completed", "verification", {}, "Approved run finalized")
+    await session.commit()
     return run
 
 
@@ -195,9 +231,10 @@ async def decide_run(
         raise APIError(409, "approval_not_available", "This run is not awaiting approval")
     if decision not in {"approve", "reject", "revise"}:
         raise APIError(422, "invalid_approval_decision", "Decision must be approve, reject, or revise")
-    existing = await session.scalar(select(AgentApproval).where(AgentApproval.run_id == run.id))
-    if existing is not None:
-        raise APIError(409, "approval_already_recorded", "A decision has already been recorded")
+    # A revision is a new approval cycle.  Approval rows are intentionally an
+    # append-only audit trail, so repeated revise -> approve decisions remain
+    # safe and recoverable instead of being blocked by a run-wide uniqueness
+    # constraint.
     approval = AgentApproval(
         run_id=run.id, organization_id=organization_id, decision=decision,
         reviewer_user_id=reviewer_user_id, comment=comment, revision=run.revision,

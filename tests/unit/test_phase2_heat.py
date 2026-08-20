@@ -8,13 +8,28 @@ from app.services.heat import analysis_idempotency_key, normalize_activity
 from app.workers.heat_queue import RedisHeatQueue
 
 
-def test_heat_idempotency_is_stable_and_zone_scoped() -> None:
-    request = {"geometry": {"type": "Polygon"}, "parameters": {"season": "summer"}}
+def test_heat_idempotency_uses_provider_query_fields() -> None:
+    request = {
+        "geometry": {"type": "Polygon", "coordinates": [[[1, 2], [3, 4], [1, 2]]]},
+        "parameters": {
+            "datetime": "2024-07-15T12:00:00Z",
+            "analytic_type": "exceedance",
+            "threshold": 35,
+            "granularity": 100,
+            "ignored": "not part of provider query",
+        },
+    }
     assert analysis_idempotency_key(UUID(int=1), request) == analysis_idempotency_key(
         UUID(int=1), request
     )
-    assert analysis_idempotency_key(UUID(int=1), request) != analysis_idempotency_key(
+    # Internal zone IDs do not change a provider query and therefore must not
+    # cause another credit-consuming FortyGuard activity.
+    assert analysis_idempotency_key(UUID(int=1), request) == analysis_idempotency_key(
         UUID(int=2), request
+    )
+    changed = {**request, "parameters": {**request["parameters"], "threshold": 36}}
+    assert analysis_idempotency_key(UUID(int=1), request) != analysis_idempotency_key(
+        UUID(int=1), changed
     )
 
 

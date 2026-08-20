@@ -49,7 +49,12 @@ async def get_principal(
     claims: TokenClaims = await CognitoJWTVerifier(settings).verify(
         authorization.removeprefix("Bearer ")
     )
-    return Principal(subject=claims.subject, email=claims.email, roles=frozenset())
+    role_map = {"viewer": Role.VIEWER, "analyst": Role.ANALYST, "manager": Role.MANAGER, "admin": Role.ADMIN}
+    return Principal(
+        subject=claims.subject,
+        email=claims.email,
+        roles=frozenset(role_map[item] for item in claims.roles if item in role_map),
+    )
 
 
 def require_roles(*roles: Role) -> Callable[..., Awaitable[Principal]]:
