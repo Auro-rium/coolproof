@@ -114,6 +114,7 @@ async def metrics(
 
 
 @router.get("/me")
+@router.get("/api/v1/me")
 async def me(principal: Principal = Depends(get_principal)) -> dict[str, object]:
     return {
         "subject": principal.subject,

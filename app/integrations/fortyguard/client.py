@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import random
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -105,7 +106,7 @@ class FortyGuardClient:
         raise AssertionError("unreachable")
 
     async def create_analysis(self, payload: dict[str, object]) -> str:
-        response = await self._request("POST", "/v1/heatmap", json=payload)
+        response = await self._request("POST", "/v1/heatmap", json=self._heatmap_payload(payload))
         data = response.get("data")
         data = data if isinstance(data, dict) else {}
         activity_id = data.get("activity_id") or response.get("activity_id") or response.get("id")
@@ -114,6 +115,51 @@ class FortyGuardClient:
                 "fortyguard_invalid_response", "FortyGuard response omitted activity identifier"
             )
         return activity_id
+
+    @staticmethod
+    def _heatmap_payload(payload: dict[str, object]) -> dict[str, object]:
+        """Translate CoolProof's stable request shape to FortyGuard v1.
+
+        CoolProof stores the zone geometry and optional parameters in a provider-
+        neutral envelope. FortyGuard requires ``polygon_aoi`` and ``date_time``
+        at the top level, so the adapter owns that vendor-specific translation.
+        """
+        geometry = payload.get("polygon_aoi") or payload.get("geometry")
+        if not isinstance(geometry, dict):
+            raise FortyGuardError("fortyguard_invalid_request", "A polygon geometry is required")
+        if geometry.get("type") == "FeatureCollection":
+            polygon_aoi: dict[str, object] = geometry
+        else:
+            polygon_aoi = {
+                "type": "FeatureCollection",
+                "features": [{"type": "Feature", "properties": {}, "geometry": geometry}],
+            }
+        raw_parameters = payload.get("parameters")
+        parameters = raw_parameters if isinstance(raw_parameters, dict) else {}
+        now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+        date_time = parameters.get("date_time")
+        if not isinstance(date_time, dict):
+            date_time = {
+                "start_date": now.date().isoformat(),
+                "start_time": now.strftime("%H:%M"),
+                "filter_type": 1,
+            }
+        analytic_type = parameters.get("analytic_type")
+        if not isinstance(analytic_type, str):
+            analytic_type = "exceedance" if parameters.get("include_exceedance") else "tcm"
+        granularity = parameters.get("granularity", parameters.get("resolution", 100))
+        if isinstance(granularity, str) and granularity.endswith("m"):
+            granularity = int(granularity[:-1])
+        result: dict[str, object] = {
+            "polygon_aoi": polygon_aoi,
+            "date_time": date_time,
+            "granularity": granularity,
+            "analytic_type": analytic_type,
+        }
+        for key in ("threshold", "direction"):
+            if key in parameters:
+                result[key] = parameters[key]
+        return result
 
     async def get_activity(self, activity_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/v1/status/{activity_id}")
