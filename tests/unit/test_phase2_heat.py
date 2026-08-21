@@ -40,6 +40,14 @@ def test_normalizes_completed_activity() -> None:
     assert result == {"mean_c": 37.2}
 
 
+def test_normalizes_fortyguard_data_envelope() -> None:
+    status, result = normalize_activity(
+        {"status": "ok", "data": {"status": "Completed", "result": {"stats_data": {}}}}
+    )
+    assert status is HeatAnalysisStatus.SUCCEEDED
+    assert result == {"stats_data": {}}
+
+
 def test_rejects_unknown_provider_status() -> None:
     with pytest.raises(FortyGuardError, match="unknown activity status"):
         normalize_activity({"status": "mystery"})

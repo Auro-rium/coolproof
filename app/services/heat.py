@@ -122,13 +122,15 @@ def analysis_idempotency_key(zone_id: UUID, request: dict[str, object]) -> str:
 def normalize_activity(
     payload: dict[str, Any],
 ) -> tuple[HeatAnalysisStatus, dict[str, object] | None]:
-    state = str(payload.get("status", "")).lower()
+    envelope = payload.get("data")
+    data = envelope if isinstance(envelope, dict) else payload
+    state = str(data.get("status", payload.get("status", ""))).lower()
     if state in {"queued", "pending"}:
         return HeatAnalysisStatus.QUEUED, None
     if state in {"running", "processing"}:
         return HeatAnalysisStatus.RUNNING, None
     if state in {"succeeded", "completed", "complete"}:
-        result = payload.get("result") or payload.get("data")
+        result = data.get("result") or payload.get("result")
         if not isinstance(result, dict):
             raise FortyGuardError(
                 "fortyguard_invalid_response", "Completed activity omitted result data"
@@ -253,7 +255,7 @@ class HeatService:
             if circuit is None:
                 circuit = ProviderCircuit(provider="fortyguard")
                 self.session.add(circuit)
-            circuit.consecutive_failures += 1
+            circuit.consecutive_failures = (circuit.consecutive_failures or 0) + 1
             circuit.is_open = circuit.consecutive_failures >= 3
             circuit.open_until = now + timedelta(seconds=30) if circuit.is_open else None
             activity = await self.session.scalar(
