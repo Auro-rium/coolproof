@@ -8,6 +8,7 @@
 .nav-link.active{background:rgba(99,230,208,.1);color:var(--ink)}
 .nav-current{width:4px;height:18px;background:var(--cyan);border-radius:4px;position:absolute;right:8px}
 .system-chip{display:grid;grid-template-columns:10px 1fr;column-gap:4px;align-items:center}
+.system-chip .status-dot.down{background:var(--danger);box-shadow:0 0 12px var(--danger)}
 .system-chip > span:first-child{grid-row:span 2;margin:0;margin-top:2px}
 .system-chip small{grid-column:2;color:#5f7893;font-size:.62rem;margin-top:2px}
 .user-chip{border:1px solid transparent;background:transparent;border-radius:8px;width:100%;text-align:left}
