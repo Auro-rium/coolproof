@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/portfolio": {
+      "targetKind": "new-ui",
+      "projectId": "9a5ea6c7-703b-47f1-bce7-200ca1beb9d9",
+      "activeDraftId": "d006563e-8dec-4f95-908a-a3fa47159605",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/index.html",
+        "frontend/styles.css",
+        ".superdesign/init/routes.md"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "dafa33503a9be015027abb13d27aae9e5f8f9f4cc6af3d0de654dcd7db271df2",
+        "frontend/index.html": "4e646be9162d9e5260ba24f9daf842a7875536f8dcb62327493dfd6caf2fec3e",
+        "frontend/styles.css": "1edf76483224883374673cead487242d411740533432db07020f2b79f59752bf",
+        ".superdesign/init/routes.md": "00876899bfba4ce29581662934fa6b03cb862eb192b8de4132b782ae34a40a08"
+      },
+      "drafts": {
+        "d006563e-8dec-4f95-908a-a3fa47159605": {
+          "title": "Portfolio operations dashboard",
+          "visualDirection": "dark operational telemetry console",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-21T06:10:00Z"
+    }
+  }
+}
