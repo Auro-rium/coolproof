@@ -16,6 +16,15 @@ export async function POST(request: Request) {
     const idToken = result.AuthenticationResult?.IdToken;
     const refreshToken = result.AuthenticationResult?.RefreshToken;
     if (!idToken) return NextResponse.json({ error: "Cognito did not return an ID token" }, { status: 401 });
+    const apiBase = process.env.COOLPROOF_API_BASE_URL;
+    if (!apiBase) return NextResponse.json({ error: "Backend authentication is not configured" }, { status: 503 });
+    const membership = await fetch(`${apiBase.replace(/\/$/, "")}/api/v1/auth/session`, {
+      headers: { Authorization: `Bearer ${idToken}`, "X-Organization-ID": body.organizationId },
+      cache: "no-store",
+    });
+    if (!membership.ok) {
+      return NextResponse.json({ error: membership.status === 403 ? "This identity is not a member of that organization" : "Backend membership validation failed" }, { status: membership.status === 403 ? 403 : 401 });
+    }
     const response = NextResponse.json({ ok: true });
     response.cookies.set("coolproof_id_token", idToken, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 3600 });
     if (refreshToken) response.cookies.set("coolproof_refresh_token", refreshToken, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 30 });

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.agents import router as agents_router
+from app.api.auth import router as auth_router
 from app.api.documents import router as documents_router
 from app.api.heat import router as heat_router
 from app.api.interventions import router as interventions_router
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
         return response
 
     application.include_router(router)
+    application.include_router(auth_router)
     application.include_router(projects_router)
     application.include_router(heat_router)
     application.include_router(documents_router)
