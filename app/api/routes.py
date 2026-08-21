@@ -29,6 +29,7 @@ async def liveness() -> dict[str, str]:
 
 
 @router.get("/demo/manifest", tags=["demo"])
+@router.get("/api/v1/demo/manifest", tags=["demo"])
 async def demo_manifest(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     """Expose the judge-facing workflow without exposing credentials or data."""
     return {
