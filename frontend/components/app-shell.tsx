@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 
 const nav = [
   ["◈", "Portfolio", "/portfolio", "Decision overview"],
-  ["⌖", "Zones", "/zones/demo", "Heat evidence"],
-  ["◌", "Plans", "/plans/demo", "Governed workflow"],
+  ["⌖", "Evidence", "/portfolio#projects", "Heat evidence"],
+  ["◌", "Plans", "/plans", "Governed workflow"],
   ["◇", "Optimize", "/optimize", "Deterministic allocation"],
-  ["◫", "Verify", "/verify/demo", "Measured outcomes"],
+  ["◫", "Verify", "/verify", "Measured outcomes"],
   ["⌁", "Ask CoolProof", "/ask", "Bounded commands"],
 ];
 
@@ -31,7 +31,7 @@ export function AppShell({ children, title = "Portfolio" }: { children: React.Re
     router.push("/login");
     router.refresh();
   }
-  const isActive = (href: string) => href === "/portfolio"
+  const isActive = (href: string) => href.includes("#") ? pathname === href.split("#")[0] : href === "/portfolio"
     ? pathname === href
     : pathname === href || pathname.startsWith(`/${href.split("/")[1]}/`);
   return <div className="app-shell">
