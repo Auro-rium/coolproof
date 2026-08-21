@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "../../components/app-shell";
 import { backendFetch, Project } from "../../components/data";
@@ -20,6 +21,9 @@ export default function PortfolioPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const loadProjects = useCallback(async (isRefresh = false) => {
     setError("");
@@ -44,6 +48,17 @@ export default function PortfolioPage() {
       setRefreshing(false);
     }
   }, []);
+
+  async function createProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!projectName.trim()) return;
+    setCreating(true); setError("");
+    try {
+      await backendFetch("/api/v1/projects", { method: "POST", body: JSON.stringify({ name: projectName.trim(), description: projectDescription.trim() || null }) });
+      setProjectName(""); setProjectDescription(""); await loadProjects(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Project could not be created"); }
+    finally { setCreating(false); }
+  }
 
   useEffect(() => { void loadProjects(); }, [loadProjects]);
 
@@ -92,7 +107,7 @@ export default function PortfolioPage() {
             <div><div className="card-title">Projects</div><div className="card-subtitle">Tenant-scoped workspaces available to this organization</div></div>
             <Link href="#projects" className="button ghost">View projects <span aria-hidden="true">↗</span></Link>
           </div>
-          {loading ? <div className="empty" role="status">Loading projects from AWS…</div> : projects.length === 0 ? <div className="empty portfolio-empty"><strong>No projects are available for this organization.</strong><span>The backend is connected, but this tenant has no project records yet. An analyst or manager can create the first project through the API.</span><Link href="https://3.15.34.25.sslip.io/docs" className="button primary">Open project API</Link></div> : <div className="table-wrap"><table id="projects" className="table project-table"><caption className="sr-only">CoolProof projects and evidence readiness</caption><thead><tr><th>Project</th><th>Zones</th><th>Evidence readiness</th><th>Workflow</th><th>Metadata</th></tr></thead><tbody>{projects.map(project => <tr key={project.id}><td><Link href={`/projects/${project.id}`}><strong>{project.name}</strong></Link><div className="muted project-description">{project.description ?? "No description provided"}</div></td><td>{project.zoneCount === null ? "—" : project.zoneCount}</td><td>{project.zoneCount === 0 ? <span className="badge warn"><span className="dot" /> Map a zone</span> : project.zoneCount === null ? <span className="badge fail"><span className="dot" /> Unavailable</span> : <span className="badge heat"><span className="dot" /> Ready for heat run</span>}</td><td><span className="badge">Not started</span></td><td className="muted">{formatUpdated(project)}</td></tr>)}</tbody></table></div>}
+          {loading ? <div className="empty" role="status">Loading projects from AWS…</div> : projects.length === 0 ? <div className="empty portfolio-empty"><strong>Create the first project in this organization.</strong><span>This writes a tenant-scoped project to the AWS API. Then map a zone and request live FortyGuard evidence.</span><form className="inline-form" onSubmit={createProject}><label className="sr-only" htmlFor="project-name">Project name</label><input id="project-name" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="e.g. Phoenix cooling pilot" required /><label className="sr-only" htmlFor="project-description">Project description</label><input id="project-description" value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="Optional description" /><button className="button primary" disabled={creating}>{creating ? "Creating project…" : "Create project"}</button></form></div> : <div className="table-wrap"><table id="projects" className="table project-table"><caption className="sr-only">CoolProof projects and evidence readiness</caption><thead><tr><th>Project</th><th>Zones</th><th>Evidence readiness</th><th>Workflow</th><th>Metadata</th></tr></thead><tbody>{projects.map(project => <tr key={project.id}><td><Link href={`/projects/${project.id}`}><strong>{project.name}</strong></Link><div className="muted project-description">{project.description ?? "No description provided"}</div></td><td>{project.zoneCount === null ? "—" : project.zoneCount}</td><td>{project.zoneCount === 0 ? <span className="badge warn"><span className="dot" /> Map a zone</span> : project.zoneCount === null ? <span className="badge fail"><span className="dot" /> Unavailable</span> : <span className="badge heat"><span className="dot" /> Ready for heat run</span>}</td><td><span className="badge">Not started</span></td><td className="muted">{formatUpdated(project)}</td></tr>)}</tbody></table></div>}
         </article>
 
         <aside className="card workflow-card">
