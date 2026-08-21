@@ -1,0 +1,10 @@
+"use client";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { defaultOrganizationId } from "../../lib/config";
+
+export default function LoginPage() {
+  const router = useRouter(); const [email, setEmail] = useState("auroriumnexus@gmail.com"); const [password, setPassword] = useState(""); const [org, setOrg] = useState(defaultOrganizationId); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, organizationId: org }) }); const body = await response.json().catch(() => ({})); if (!response.ok) setError(body.error ?? "Sign-in failed"); else router.push("/portfolio"); setBusy(false); }
+  return <main className="login-shell"><section className="login-card"><div className="brand"><span className="brand-mark">✦</span> CoolProof</div><div className="eyebrow">Secure operations console</div><h1>Sign in to govern cooling investment.</h1><p>Use your Cognito identity and organization ID. Your session is stored in secure HttpOnly cookies.</p><form className="login-form" onSubmit={submit}><div className="field"><label htmlFor="email">Email</label><input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div><div className="field"><label htmlFor="password">Password</label><input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required /></div><div className="field"><label htmlFor="org">Organization ID</label><input id="org" value={org} onChange={e => setOrg(e.target.value)} required /></div>{error && <div className="error">{error}</div>}<button className="button primary" disabled={busy}>{busy ? "Authenticating…" : "Sign in securely"}</button></form><div className="notice">AWS Cognito · tenant-scoped access · us-east-2</div></section></main>;
+}
