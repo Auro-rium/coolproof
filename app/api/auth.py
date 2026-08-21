@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends
 from app.api.deps import TenantContext, get_tenant_context
 from app.core.config import Settings, get_settings
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 
-@router.get("/config")
+@router.get("/auth/config")
 @router.get("/api/v1/auth/config")
 async def auth_config(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     """Return non-secret information required to render the sign-in contract."""
@@ -21,7 +21,7 @@ async def auth_config(settings: Settings = Depends(get_settings)) -> dict[str, o
     }
 
 
-@router.get("/session")
+@router.get("/auth/session")
 @router.get("/api/v1/auth/session")
 async def auth_session(tenant: TenantContext = Depends(get_tenant_context)) -> dict[str, object]:
     """Return the authenticated Cognito identity and its tenant membership."""
