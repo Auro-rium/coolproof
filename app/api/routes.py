@@ -28,6 +28,40 @@ async def liveness() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/demo/manifest", tags=["demo"])
+async def demo_manifest(settings: Settings = Depends(get_settings)) -> dict[str, object]:
+    """Expose the judge-facing workflow without exposing credentials or data."""
+    return {
+        "product": "CoolProof",
+        "positioning": "Agentic urban-cooling investment and verification platform",
+        "workflow": [
+            {"stage": "heat", "label": "FortyGuard heat evidence", "deterministic": True},
+            {"stage": "evidence", "label": "Cited intervention evidence", "deterministic": True},
+            {"stage": "optimize", "label": "OR-Tools constrained portfolio", "deterministic": True},
+            {"stage": "govern", "label": "Four-agent approval workflow", "deterministic": False},
+            {"stage": "verify", "label": "Weather-adjusted matched-control report", "deterministic": True},
+        ],
+        "architecture": {
+            "api": "FastAPI",
+            "agent_runtime": "LangGraph",
+            "database": "PostgreSQL + pgvector",
+            "queue": "Redis",
+            "artifacts": "S3",
+            "auth": "AWS Cognito JWT",
+            "host": "AWS EC2 + Docker Compose",
+            "proxy": "Caddy",
+            "telemetry": "OpenTelemetry + Prometheus + Grafana",
+        },
+        "provider": {
+            "active": settings.agent_provider,
+            "fortyguard_configured": bool(settings.fortyguard_api_key),
+            "nim_configured": bool(settings.nim_api_key),
+            "backboard_configured": bool(settings.backboard_api_key),
+        },
+        "evidence_boundary": "Agents orchestrate and explain; deterministic services calculate measurements and allocations.",
+    }
+
+
 @router.get("/health/ready")
 async def readiness(settings: Settings = Depends(get_settings)) -> dict[str, str]:
     # Local/test runs intentionally work without managed dependencies. Production
