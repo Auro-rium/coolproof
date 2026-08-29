@@ -233,17 +233,74 @@ class NIMProvider(HTTPJSONProvider):
         }
 
 
-class BackboardProvider(HTTPJSONProvider):
+class BackboardProvider:
+    """Adapter for Backboard's thread/message API.
+
+    Backboard is not an OpenAI-compatible ``/chat/completions`` endpoint.  Its
+    response body carries the structured model output in ``content``; adapting
+    that contract here keeps the governed graph provider-neutral.
+    """
+
+    name = "backboard"
+
     def __init__(self, settings: Settings):
-        if not settings.backboard_base_url or not settings.backboard_api_key:
+        if not settings.backboard_api_key:
             raise ProviderError("backboard_provider_not_configured")
-        super().__init__(
-            base_url=settings.backboard_base_url,
-            api_key=settings.backboard_api_key.get_secret_value(),
-            model=settings.backboard_model,
-            name="backboard",
-            endpoint=settings.backboard_completion_endpoint,
-        )
+        self.base_url = settings.backboard_base_url.rstrip("/")
+        self.api_key = settings.backboard_api_key.get_secret_value()
+        self.model = settings.backboard_model
+        self.llm_provider = settings.backboard_llm_provider
+
+    async def complete(self, *, agent: str, context: dict[str, object]) -> AgentOutput:
+        # The context has already been scrubbed to persisted IDs, bounded
+        # metadata, and deterministic measurements by the grounding layer.
+        content = json.dumps(context, sort_keys=True, separators=(",", ":"))
+        payload = {
+            "content": content,
+            "system_prompt": (
+                f"You are the CoolProof {agent} agent. Return only a JSON object "
+                "with keys summary, citations, facts, confidence, needs_approval."
+            ),
+            "llm_provider": self.llm_provider,
+            "model_name": self.model,
+            "json_output": True,
+            "memory": "off",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=45) as client:
+                response = await client.post(
+                    f"{self.base_url}/threads/messages",
+                    json=payload,
+                    headers={"X-API-Key": self.api_key, "Content-Type": "application/json"},
+                )
+                response.raise_for_status()
+                body = response.json()
+            raw = body.get("content") if isinstance(body, dict) else None
+            if not isinstance(raw, str):
+                raise TypeError("Backboard response omitted content")
+            return AgentOutput.model_validate(json.loads(raw))
+        except (httpx.HTTPError, ValueError, TypeError, ValidationError, KeyError) as exc:
+            raise ProviderError("backboard_provider_failed") from exc
+
+    async def generate(self, *, agent: str, context: dict[str, object]) -> AgentOutput:
+        return await self.complete(agent=agent, context=context)
+
+    async def generate_structured(self, *, agent: str, context: dict[str, object]) -> AgentOutput:
+        return await self.complete(agent=agent, context=context)
+
+    async def tool_call(
+        self, *, agent: str, context: dict[str, object], tools: list[dict[str, object]]
+    ) -> dict[str, object]:
+        del tools
+        output = await self.complete(agent=agent, context=context)
+        return {"summary": output.summary, "facts": output.facts}
+
+    async def _stream(self, *, agent: str, context: dict[str, object]) -> AsyncIterator[str]:
+        output = await self.complete(agent=agent, context=context)
+        yield output.summary
+
+    def stream(self, *, agent: str, context: dict[str, object]) -> AsyncIterator[str]:
+        return self._stream(agent=agent, context=context)
 
 
 # Descriptive name used by deployment documentation; retain the short class

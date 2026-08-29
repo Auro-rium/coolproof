@@ -45,12 +45,10 @@ class Settings(BaseSettings):
     nim_base_url: str | None = None
     nim_api_key: SecretStr | None = None
     nim_model: str = "meta/llama-3.1-8b-instruct"
-    backboard_base_url: str | None = None
+    backboard_base_url: str = "https://app.backboard.io/api"
     backboard_api_key: SecretStr | None = None
-    backboard_model: str = "backboard-default"
-    # The adapter does not assume a vendor-specific path. Set this from the
-    # deployment secret/configuration to match the selected Backboard API.
-    backboard_completion_endpoint: str = "/v1/agent/completions"
+    backboard_model: str = "gpt-4o"
+    backboard_llm_provider: str = "openai"
     agent_provider: str = "deterministic"
     agent_run_timeout_seconds: float = 120.0
 
