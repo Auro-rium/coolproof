@@ -12,6 +12,10 @@ from app.db.base import Base
 config = context.config
 settings = get_settings()
 sync_url = settings.database_url.replace("+asyncpg", "").replace("+aiosqlite", "")
+# asyncpg accepts ``ssl=require`` while psycopg (used by Alembic) requires
+# libpq's ``sslmode=require`` spelling. Keep the runtime URL unchanged and
+# normalize only the synchronous migration connection.
+sync_url = sync_url.replace("ssl=require", "sslmode=require")
 # Alembic's ConfigParser treats percent signs as interpolation markers; URLs
 # commonly contain percent-encoded credentials, so escape them before setting
 # the runtime URL.
