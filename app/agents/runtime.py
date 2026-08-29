@@ -10,6 +10,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.grounding import (
+    grounded_citations,
+    resolve_grounding,
+    safe_input_references,
+    safe_provider_facts,
+    summary_for_agent,
+)
 from app.agents.providers import AgentOutput, LLMProvider, provider_from_settings
 from app.core.config import Settings
 from app.core.errors import APIError
@@ -22,7 +29,7 @@ AGENT_NAMES = (
     "portfolio",
     "verification",
 )
-_STATE_FIELDS = {"heat_evidence", "intervention_evidence", "portfolio", "verification", "citations", "summaries", "current_agent"}
+_STATE_FIELDS = {"heat_evidence", "intervention_evidence", "portfolio", "verification", "citations", "summaries", "current_agent", "grounding"}
 
 
 class CoolProofState(BaseModel):
@@ -35,6 +42,7 @@ class CoolProofState(BaseModel):
     intervention_evidence: list[dict[str, object]] = Field(default_factory=list)
     portfolio: dict[str, object] = Field(default_factory=dict)
     verification: dict[str, object] = Field(default_factory=dict)
+    grounding: dict[str, object] = Field(default_factory=dict)
     citations: list[str] = Field(default_factory=list)
     summaries: dict[str, str] = Field(default_factory=dict)
     current_agent: str | None = None
@@ -48,6 +56,7 @@ class GraphInput(TypedDict, total=False):
     verification: dict[str, object]
     citations: list[str]
     summaries: dict[str, str]
+    grounding: dict[str, object]
 
 
 Node = Callable[[CoolProofState], Awaitable[CoolProofState]]
@@ -55,23 +64,41 @@ Node = Callable[[CoolProofState], Awaitable[CoolProofState]]
 
 async def _run_node(state: CoolProofState, name: str, provider: LLMProvider) -> CoolProofState:
     output: AgentOutput = await provider.complete(agent=name, context={
-        "input": state.input,
+        # The request payload is deliberately not passed to providers. It can
+        # contain prompts, source text, or untrusted identifiers. Grounding is
+        # resolved from tenant-owned rows before the graph starts.
+        "grounding": state.grounding,
         "heat_evidence": state.heat_evidence,
         "intervention_evidence": state.intervention_evidence,
         "portfolio": state.portfolio,
         "verification": state.verification,
     })
     state.current_agent = name
-    state.summaries[name] = output.summary
-    state.citations.extend(c for c in output.citations if c not in state.citations)
-    if name == "heat_intelligence":
-        state.heat_evidence = {**state.heat_evidence, **output.facts}
-    elif name == "intervention_analyst":
-        state.intervention_evidence.append({"summary": output.summary, **output.facts})
-    elif name == "portfolio":
-        state.portfolio = {**state.portfolio, **output.facts}
+    if state.grounding:
+        # Provider completions are never persisted. Keep only a deterministic
+        # status line and scalar facts; citations must be issued by the
+        # tenant-scoped resolver rather than invented by a model.
+        state.summaries[name] = summary_for_agent(name, state.grounding)
+        state.input = {}
+        trusted = grounded_citations(state.grounding)
+        state.citations.extend(
+            c for c in trusted if c not in state.citations
+        )
+        facts = safe_provider_facts(output.facts)
     else:
-        state.verification = {**state.verification, **output.facts}
+        # Preserve the small in-memory graph contract used by unit tests and
+        # callers that exercise build_graph directly without persistence.
+        state.summaries[name] = output.summary
+        state.citations.extend(c for c in output.citations if c not in state.citations)
+        facts = output.facts
+    if name == "heat_intelligence":
+        state.heat_evidence = {**state.heat_evidence, **facts}
+    elif name == "intervention_analyst":
+        state.intervention_evidence.append({"summary": state.summaries[name], **facts})
+    elif name == "portfolio":
+        state.portfolio = {**state.portfolio, **facts}
+    else:
+        state.verification = {**state.verification, **facts}
     return state
 
 
@@ -123,12 +150,15 @@ async def create_run(
     project_id: UUID | None,
     input_data: dict[str, object],
 ) -> AgentRun:
+    # Keep only persisted-object references needed for grounding. Prompts,
+    # source text, and arbitrary request metadata never become durable.
+    safe_input = safe_input_references(input_data)
     run = AgentRun(
         organization_id=organization_id,
         project_id=project_id,
         thread_id=str(uuid4()),
-        input_json=input_data,
-        state_json={"input": input_data},
+        input_json=safe_input,
+        state_json={"input": safe_input},
         status=AgentRunStatus.QUEUED,
     )
     session.add(run)
@@ -166,6 +196,12 @@ async def execute_run(session: AsyncSession, run: AgentRun, settings: Settings) 
         **{key: value for key, value in run.state_json.items() if key in _STATE_FIELDS},
     )
     try:
+        state.grounding = await resolve_grounding(
+            session,
+            organization_id=run.organization_id,
+            project_id=run.project_id,
+            input_data=run.input_json,
+        )
         # The compiled graph is the production execution path.  AgentRun is
         # the application-owned durable checkpoint: the final LangGraph
         # state, thread id, and monotonically increasing revision are written

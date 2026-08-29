@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -143,8 +144,17 @@ def create_presigned_put_url(
         raise ValueError("documents bucket is required")
     if s3_client is None:
         import boto3
+        from botocore.config import Config
 
-        s3_client = boto3.client("s3")
+        # Explicit SigV4 is required outside us-east-1.  Relying on a
+        # container's implicit SDK defaults can otherwise yield a legacy
+        # signature that S3 rejects before the uploaded evidence reaches the
+        # tenant-scoped ingestion flow.
+        s3_client = boto3.client(
+            "s3",
+            region_name=os.getenv("AWS_REGION", "us-east-2"),
+            config=Config(signature_version="s3v4"),
+        )
     return str(
         s3_client.generate_presigned_url(
             "put_object",

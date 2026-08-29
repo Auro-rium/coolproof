@@ -120,7 +120,9 @@ class PortfolioRun(UUIDTimestampMixin, Base):
     organization_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("organizations.id"), index=True
     )
-    project_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, index=True)
+    project_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     budget: Mapped[float] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(40), default="completed")
     result_json: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)

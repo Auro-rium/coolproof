@@ -5,7 +5,16 @@
   encode zstd gzip
   log {
     output stdout
-    format json
+    # Request headers can carry browser cookies and Cognito bearer tokens.
+    # Keep access logs useful without writing those credentials to stdout or
+    # downstream telemetry.
+    format filter {
+      wrap json
+      fields {
+        request>headers delete
+        request>tls delete
+      }
+    }
   }
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"

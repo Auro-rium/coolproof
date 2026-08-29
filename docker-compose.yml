@@ -11,20 +11,20 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     image: coolproof-api:latest
     <<: *runtime
-    environment: { OTEL_SERVICE_NAME: coolproof-api, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318 }
+    environment: { OTEL_SERVICE_NAME: coolproof-api, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317 }
     expose: ["8000"]
     depends_on: { otel-collector: { condition: service_started } }
     healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"], interval: 30s, timeout: 5s, retries: 3 }
   worker:
     image: coolproof-api:latest
     <<: *runtime
-    environment: { OTEL_SERVICE_NAME: coolproof-worker, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318 }
+    environment: { OTEL_SERVICE_NAME: coolproof-worker, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317 }
     command: ["python", "-m", "app.worker"]
     depends_on: { otel-collector: { condition: service_started } }
   langgraph:
     image: coolproof-api:latest
     <<: *runtime
-    environment: { OTEL_SERVICE_NAME: coolproof-langgraph, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318 }
+    environment: { OTEL_SERVICE_NAME: coolproof-langgraph, OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317 }
     command: ["python", "-m", "app.langgraph_runtime"]
     depends_on: { otel-collector: { condition: service_started } }
   caddy:
